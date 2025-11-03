@@ -1,0 +1,9 @@
+{
+  "name": "auth-lambda-authorizer",
+  "version": "1.0.0",
+  "description": "JWT authorizer for API Gateway",
+  "main": "authorizer.js",
+  "dependencies": {
+    "jsonwebtoken": "^9.0.2"
+  }
+}
