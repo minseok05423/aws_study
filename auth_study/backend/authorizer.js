@@ -1,7 +1,27 @@
 const jwt = require("jsonwebtoken");
+const jwksClient = require("jwks-rsa");
 
-// Use environment variable for the secret key
-const SECRET_KEY = process.env.JWT_SECRET || "lambda";
+// JWKS endpoint for your Supabase project
+const SUPABASE_URL = "https://tjpcqbwncobkjmvcjckj.supabase.co";
+
+// Create JWKS client
+const client = jwksClient({
+  jwksUri: `${SUPABASE_URL}/auth/v1/.well-known/jwks.json`,
+  cache: true,
+  cacheMaxAge: 600000, // Cache keys for 10 minutes
+});
+
+// Function to get signing key
+function getKey(header, callback) {
+  client.getSigningKey(header.kid, (err, key) => {
+    if (err) {
+      callback(err);
+      return;
+    }
+    const signingKey = key.publicKey || key.rsaPublicKey;
+    callback(null, signingKey);
+  });
+}
 
 exports.handler = async (event, context) => {
   try {
@@ -18,27 +38,42 @@ exports.handler = async (event, context) => {
     // Remove 'Bearer ' prefix if present
     const cleanToken = token.replace(/^Bearer\s+/i, "");
 
-    // Verify token synchronously
-    try {
-      const decoded = jwt.verify(cleanToken, SECRET_KEY);
-      console.log("Token verified successfully for user:", decoded.userId || decoded.email);
-
-      // Return Allow policy with user context
-      // Note: context values MUST be strings for TOKEN type
-      return generatePolicy(
-        String(decoded.userId || decoded.email || "user"),
-        "Allow",
-        event.methodArn,
+    // Verify token with JWKS (using callback-based verify)
+    return new Promise((resolve, reject) => {
+      jwt.verify(
+        cleanToken,
+        getKey,
         {
-          userId: String(decoded.userId || ""),
-          email: String(decoded.email || ""),
-          role: String(decoded.role || ""),
+          algorithms: ["ES256", "HS256"], // Support both new and legacy keys
+        },
+        (err, decoded) => {
+          if (err) {
+            console.error("Token verification failed:", err.message);
+            reject(new Error("Unauthorized"));
+            return;
+          }
+
+          console.log(
+            "Token verified successfully for user:",
+            decoded.sub || decoded.email
+          );
+
+          // Supabase uses 'sub' field for user ID
+          const policy = generatePolicy(
+            String(decoded.sub || decoded.email || "user"),
+            "Allow",
+            event.methodArn,
+            {
+              userId: String(decoded.sub || ""),
+              email: String(decoded.email || ""),
+              role: String(decoded.role || ""),
+            }
+          );
+
+          resolve(policy);
         }
       );
-    } catch (err) {
-      console.error("Token verification failed:", err.message);
-      throw new Error("Unauthorized"); // Client will see generic 401/403
-    }
+    });
   } catch (error) {
     console.error("Authorizer error:", error.message || error);
     throw new Error("Unauthorized"); // Client will see generic 401/403

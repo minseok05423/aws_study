@@ -1,7 +1,7 @@
 import { useState } from "react";
-import Login from "./pages/Login";
-import Signup from "./pages/Signup";
-import Home from "./pages/Home";
+import Login from "./components/auth/Login";
+import Signup from "./components/auth/Signup";
+import Home from "./components/pages/Home";
 
 type Page = "login" | "signup" | "home";
 
