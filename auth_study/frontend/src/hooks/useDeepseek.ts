@@ -5,19 +5,17 @@ const useDeepseekAPI = () => {
   const [deepseekLoading, setDeepseekLoading] = useState<boolean>(false);
 
   const CallDeepseek = async (token: string) => {
-    // add default value for fallback
     setDeepseekError(null);
     setDeepseekLoading(true);
 
     try {
       const response = await fetch(
-        "https://api.deepseek.com/v1/chat/completions",
+        "https://4iy42lphh8.execute-api.ap-northeast-2.amazonaws.com/dev/deepseek",
         {
           method: "POST",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
-            // tells the server that the data is in json
           },
           body: JSON.stringify({
             messages: [
@@ -40,7 +38,6 @@ const useDeepseekAPI = () => {
         throw new Error(`Deepseek API error: ${response.status}`);
       }
       const completion = await response.json();
-      // .json() needs await as it is asynchronous
       return completion;
     } catch (error) {
       const message =

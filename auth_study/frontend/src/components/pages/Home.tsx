@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
+import useDeepseekAPI from "../../hooks/useDeepseek";
 import supabase from "../../utils/supabase";
+import { useAuth } from "../../auth/authContext";
 
 interface HomeProps {
   onLogout: () => void;
@@ -20,6 +22,21 @@ const Home = ({ onLogout }: HomeProps) => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingText, setEditingText] = useState("");
   const [flag, setFlag] = useState(1);
+  const [deepseekResponse, setDeepseekResponse] = useState();
+
+  const { CallDeepseek } = useDeepseekAPI();
+  const { session } = useAuth();
+
+  const token = session?.access_token;
+
+  const TestPress = async () => {
+    if (!token) {
+      console.log("not authorized");
+    } else {
+      const response = await CallDeepseek(token);
+      setDeepseekResponse(response);
+    }
+  };
 
   useEffect(() => {
     const getTodos = async () => {
@@ -218,6 +235,12 @@ const Home = ({ onLogout }: HomeProps) => {
           </div>
         </div>
       </main>
+      <div>
+        <button className="border" onClick={TestPress}>
+          call deepseek
+        </button>
+        <div>{deepseekResponse}</div>
+      </div>
     </div>
   );
 };
