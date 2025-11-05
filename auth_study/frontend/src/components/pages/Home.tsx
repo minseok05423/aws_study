@@ -22,7 +22,7 @@ const Home = ({ onLogout }: HomeProps) => {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingText, setEditingText] = useState("");
   const [flag, setFlag] = useState(1);
-  const [deepseekResponse, setDeepseekResponse] = useState();
+  const [deepseekResponse, setDeepseekResponse] = useState<string>("");
 
   const { CallDeepseek } = useDeepseekAPI();
   const { session } = useAuth();
@@ -34,7 +34,8 @@ const Home = ({ onLogout }: HomeProps) => {
       console.log("not authorized");
     } else {
       const response = await CallDeepseek(token);
-      setDeepseekResponse(response);
+      const result = JSON.stringify(response, null, 2);
+      setDeepseekResponse(result);
     }
   };
 
@@ -239,7 +240,13 @@ const Home = ({ onLogout }: HomeProps) => {
         <button className="border" onClick={TestPress}>
           call deepseek
         </button>
-        <div>{deepseekResponse}</div>
+        <div>
+          {deepseekResponse && (
+            <pre className="bg-gray-100 p-4 rounded overflow-auto">
+              {deepseekResponse}
+            </pre>
+          )}
+        </div>
       </div>
     </div>
   );
