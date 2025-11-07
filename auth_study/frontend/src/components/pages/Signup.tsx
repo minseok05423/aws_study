@@ -1,23 +1,27 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import supabase from "../../utils/supabase";
+import { useAuth } from "../auth/authContext";
 
 interface SignupProps {
   onNavigateToLogin: () => void;
+  setVerificationLoading: (loading: boolean) => void;
 }
 
-const Signup = ({ onNavigateToLogin }: SignupProps) => {
+const Signup = ({ onNavigateToLogin, setVerificationLoading }: SignupProps) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [timeoutId, setTimeoutId] = useState<number | null>(null);
+
+  const { session } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setSuccess("");
 
-    // Basic validation
     if (!email || !password || !confirmPassword) {
       setError("Please fill in all fields");
       return;
@@ -39,18 +43,44 @@ const Signup = ({ onNavigateToLogin }: SignupProps) => {
       email,
       password,
     });
+
     if (error) {
       setError(`Login failed: ${error}`);
       return;
     }
 
-    setSuccess("Account created successfully! Please login.");
+    setVerificationLoading(true);
 
-    // Redirect to login after 2 seconds
-    setTimeout(() => {
-      onNavigateToLogin();
-    }, 2000);
+    const timeout = setTimeout(() => {
+      setVerificationLoading(false);
+      if (!session) {
+        setError("Email verification timed out. Please try logging in again.");
+      }
+    }, 180000); // 3min
+    setTimeoutId(timeout);
   };
+
+  useEffect(() => {
+    // Cleanup timeout when component unmounts or when verification happens
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  }, [timeoutId]);
+
+  useEffect(() => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_IN") {
+        console.log("User signed in (possibly verified email)");
+        setVerificationLoading(false);
+        if (timeoutId) clearTimeout(timeoutId);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [timeoutId]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100">

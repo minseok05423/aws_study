@@ -3,10 +3,9 @@ import supabase from "../../utils/supabase";
 
 interface LoginProps {
   onNavigateToSignup: () => void;
-  onLoginSuccess: () => void;
 }
 
-const Login = ({ onNavigateToSignup, onLoginSuccess }: LoginProps) => {
+const Login = ({ onNavigateToSignup }: LoginProps) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -24,12 +23,11 @@ const Login = ({ onNavigateToSignup, onLoginSuccess }: LoginProps) => {
       email,
       password,
     });
+
     if (error) {
       setError(`Login failed: ${error}`);
       return;
     }
-
-    onLoginSuccess();
   };
 
   return (
