@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import useDeepseekAPI from "../../hooks/useDeepseek";
 import supabase from "../../utils/supabase";
-import { useAuth } from "../../auth/authContext";
+import { useAuth } from "../auth/authContext";
 
 interface HomeProps {
   onLogout: () => void;
