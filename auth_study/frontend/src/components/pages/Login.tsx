@@ -15,7 +15,6 @@ const Login = ({ onNavigateToSignup, onLoginSuccess }: LoginProps) => {
     e.preventDefault();
     setError("");
 
-    // Basic validation
     if (!email || !password) {
       setError("Please fill in all fields");
       return;
@@ -30,7 +29,6 @@ const Login = ({ onNavigateToSignup, onLoginSuccess }: LoginProps) => {
       return;
     }
 
-    // On successful login, navigate to home page
     onLoginSuccess();
   };
 

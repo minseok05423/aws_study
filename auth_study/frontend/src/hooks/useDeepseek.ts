@@ -4,7 +4,7 @@ const useDeepseekAPI = () => {
   const [deepseekError, setDeepseekError] = useState<string | null>(null);
   const [deepseekLoading, setDeepseekLoading] = useState<boolean>(false);
 
-  const CallDeepseek = async (token: string) => {
+  const CallDeepseek = async (token: string, maxTokens: number = 256) => {
     setDeepseekError(null);
     setDeepseekLoading(true);
 
@@ -22,7 +22,7 @@ const useDeepseekAPI = () => {
               {
                 role: "system",
                 content:
-                  "Generate 5 deeper, more specific keywords about the target topic. Avoid repeating any words from the context. Output only keywords separated by commas.",
+                  "be smart and concise when answering the user's questions.",
               },
               {
                 role: "user",
@@ -30,6 +30,7 @@ const useDeepseekAPI = () => {
               },
             ],
             model: "deepseek-chat",
+            max_tokens: maxTokens,
           }),
         }
       );
@@ -38,11 +39,13 @@ const useDeepseekAPI = () => {
         throw new Error(`Deepseek API error: ${response.status}`);
       }
       const completion = await response.json();
+      setDeepseekLoading(false);
       return completion;
     } catch (error) {
       const message =
         error instanceof Error ? error : "unknown error has occured";
       console.log(message);
+      setDeepseekLoading(false);
     }
   };
 

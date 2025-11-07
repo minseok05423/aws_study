@@ -11,6 +11,7 @@ interface Todo {
   id: number;
   title: string;
   description: string;
+  user_id: string;
 }
 
 const Home = ({ onLogout }: HomeProps) => {
@@ -24,7 +25,8 @@ const Home = ({ onLogout }: HomeProps) => {
   const [flag, setFlag] = useState(1);
   const [deepseekResponse, setDeepseekResponse] = useState<string>("");
 
-  const { CallDeepseek } = useDeepseekAPI();
+  const { CallDeepseek, deepseekLoading } = useDeepseekAPI();
+  const [loading, setLoading] = useState("");
   const { session } = useAuth();
 
   const token = session?.access_token;
@@ -33,11 +35,29 @@ const Home = ({ onLogout }: HomeProps) => {
     if (!token) {
       console.log("not authorized");
     } else {
-      const response = await CallDeepseek(token);
+      const response = await CallDeepseek(token, 128);
       const result = JSON.stringify(response, null, 2);
       setDeepseekResponse(result);
     }
   };
+
+  useEffect(() => {
+    let intervalId: number | null = null;
+
+    if (deepseekLoading) {
+      intervalId = setInterval(() => {
+        setLoading((prev) => (prev += "."));
+      }, 500);
+    } else {
+      setLoading("");
+    }
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [deepseekLoading]);
 
   useEffect(() => {
     const getTodos = async () => {
@@ -61,16 +81,37 @@ const Home = ({ onLogout }: HomeProps) => {
 
   const handleAddTodo = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTask.title.trim()) return;
 
-    const { error } = await supabase.from("todos").insert(newTask).single();
-    console.log("added successfully");
-    if (error) {
+    try {
+      if (!newTask.title.trim()) return;
+
+      // Get the current user's ID
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) {
+        throw new Error("User not authenticated");
+      }
+
+      const { error } = await supabase
+        .from("todos")
+        .insert({
+          ...newTask,
+          user_id: user.id,
+        })
+        .single();
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      console.log("Adding todo:", newTask);
+      Switch();
+    } catch (error) {
       console.log(`error: ${error}`);
     }
 
-    console.log("Adding todo:", newTask);
-    Switch();
     setNewTask({ title: "", description: "" });
   };
 
@@ -241,6 +282,7 @@ const Home = ({ onLogout }: HomeProps) => {
           call deepseek
         </button>
         <div>
+          {deepseekLoading ? <p>Loading{loading}</p> : null}
           {deepseekResponse && (
             <pre className="bg-gray-100 p-4 rounded overflow-auto">
               {deepseekResponse}
