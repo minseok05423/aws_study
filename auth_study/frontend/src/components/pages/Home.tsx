@@ -85,12 +85,9 @@ const Home = ({ onLogout }: HomeProps) => {
     try {
       if (!newTask.title.trim()) return;
 
-      // Get the current user's ID
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const userId = session?.user?.id;
 
-      if (!user) {
+      if (!userId) {
         throw new Error("User not authenticated");
       }
 
@@ -98,7 +95,7 @@ const Home = ({ onLogout }: HomeProps) => {
         .from("todos")
         .insert({
           ...newTask,
-          user_id: user.id,
+          user_id: userId,
         })
         .single();
 
