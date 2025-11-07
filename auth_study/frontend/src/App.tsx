@@ -8,7 +8,6 @@ type Page = "login" | "signup" | "home";
 
 function App() {
   const [currentPage, setCurrentPage] = useState<Page>("login");
-  const [verificationLoading, setVerificationLoading] = useState(false);
   const { session, signOut } = useAuth();
 
   const handleLogout = () => {
@@ -17,24 +16,21 @@ function App() {
   };
 
   useEffect(() => {
-    console.log("session changed(or maybe something else):", session);
+    console.log("session changed:", session);
 
-    if (session && currentPage !== "home" && !verificationLoading) {
+    if (session && currentPage !== "home") {
       setCurrentPage("home");
     } else if (!session && currentPage === "home") {
       setCurrentPage("login");
     }
-  }, [session, currentPage, verificationLoading]);
+  }, [session, currentPage]);
 
   return (
     <>
       {currentPage === "login" ? (
         <Login onNavigateToSignup={() => setCurrentPage("signup")} />
       ) : currentPage === "signup" ? (
-        <Signup
-          onNavigateToLogin={() => setCurrentPage("login")}
-          setVerificationLoading={setVerificationLoading}
-        />
+        <Signup onNavigateToLogin={() => setCurrentPage("login")} />
       ) : (
         <Home onLogout={handleLogout} />
       )}

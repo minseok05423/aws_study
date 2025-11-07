@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import useDeepseekAPI from "../../hooks/useDeepseek";
 import supabase from "../../utils/supabase";
 import { useAuth } from "../auth/authContext";
+import ImageUploader from "..//ImageUploader";
+import ImageSearch from "../ImageSearch";
 
 interface HomeProps {
   onLogout: () => void;
@@ -274,6 +276,12 @@ const Home = ({ onLogout }: HomeProps) => {
           </div>
         </div>
       </main>
+      <div>
+        <ImageUploader />
+      </div>
+      <div>
+        <ImageSearch />
+      </div>
       <div>
         <button className="border" onClick={TestPress}>
           call deepseek
