@@ -1,9 +1,14 @@
 import { useState, useEffect } from "react";
 import useDeepseekAPI from "../../hooks/useDeepseek";
+import useImageFetch from "../../hooks/useImageFetch";
 import supabase from "../../utils/supabase";
 import { useAuth } from "../auth/authContext";
 import ImageUploader from "..//ImageUploader";
-import ImageSearch from "../ImageSearch";
+import { v4 as uuidv4 } from "uuid";
+import {
+  uploadMultipleImages,
+  type UploadResult,
+} from "../../utils/imageBucket";
 
 interface HomeProps {
   onLogout: () => void;
@@ -14,6 +19,8 @@ interface Todo {
   title: string;
   description: string;
   user_id: string;
+  linked_id: string;
+  created_at: string;
 }
 
 const Home = ({ onLogout }: HomeProps) => {
@@ -27,7 +34,18 @@ const Home = ({ onLogout }: HomeProps) => {
   const [flag, setFlag] = useState(1);
   const [deepseekResponse, setDeepseekResponse] = useState<string>("");
 
+  // Image upload states
+  const [images, setImages] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
+
   const { CallDeepseek, deepseekLoading } = useDeepseekAPI();
+  const {
+    images: fetchedImages,
+    loading: imageLoading,
+    error: imageError,
+    fetchImagesByLinkedId,
+  } = useImageFetch();
   const [loading, setLoading] = useState("");
   const { session } = useAuth();
 
@@ -93,11 +111,38 @@ const Home = ({ onLogout }: HomeProps) => {
         throw new Error("User not authenticated");
       }
 
+      setUploading(true);
+
+      // Generate a unique ID to link the todo with uploaded images
+      const linkedId = uuidv4();
+
+      // Upload images if any are selected
+      if (images.length > 0) {
+        const results = await uploadMultipleImages(images, userId, linkedId);
+
+        const failedUploads = results.filter(
+          (result: UploadResult) => result.error
+        );
+
+        if (failedUploads.length > 0) {
+          const errorMessages = failedUploads
+            .map(
+              (result: UploadResult) => `${result.fileName}: ${result.error}`
+            )
+            .join("\n");
+          alert(`Some image uploads failed:\n${errorMessages}`);
+          setUploading(false);
+          return;
+        }
+      }
+
+      // Add the todo to database
       const { error } = await supabase
         .from("todos")
         .insert({
           ...newTask,
           user_id: userId,
+          linked_id: linkedId,
         })
         .single();
 
@@ -106,20 +151,51 @@ const Home = ({ onLogout }: HomeProps) => {
       }
 
       console.log("Adding todo:", newTask);
+
+      // Clear form and images
+      setNewTask({ title: "", description: "" });
+      setImages([]);
+      setPreviews([]);
+
       Switch();
     } catch (error) {
       console.log(`error: ${error}`);
+      alert(`Failed to add todo: ${error}`);
+    } finally {
+      setUploading(false);
     }
-
-    setNewTask({ title: "", description: "" });
   };
 
   const handleDeleteTodo = async (id: number) => {
-    const { error } = await supabase.from("todos").delete().eq("id", id);
     console.log("Deleting todo:", id);
-    if (error) {
-      console.log(`error: ${error}`);
+    const { data, error: fetchError } = await supabase
+      .from("todos")
+      .select("linked_id")
+      .eq("id", id)
+      .single();
+
+    const linkedId = data?.linked_id;
+
+    if (fetchError) {
+      console.log(`fetchError: ${fetchError}`);
+      return;
     }
+    const { error: dbError } = await supabase
+      .from("todos")
+      .delete()
+      .eq("id", id);
+    if (dbError) {
+      console.log(`dbError: ${dbError}`);
+      return;
+    }
+    const { error: storageError } = await supabase.storage
+      .from("images")
+      .remove([`${session?.user?.id}/${linkedId}`]);
+    if (storageError) {
+      console.log(`storageError: ${storageError}`);
+      return;
+    }
+
     Switch();
   };
 
@@ -148,6 +224,23 @@ const Home = ({ onLogout }: HomeProps) => {
   const handleCancelEdit = () => {
     setEditingId(null);
     setEditingText("");
+  };
+
+  const handleCallImages = async (todo: Todo) => {
+    const userId = session?.user?.id;
+
+    if (!userId) {
+      alert("You must be logged in to fetch images");
+      return;
+    }
+
+    if (!todo.linked_id) {
+      alert("This todo has no linked images");
+      return;
+    }
+
+    // idk why i moved this into hooks, this shouldnt be there
+    await fetchImagesByLinkedId(userId, todo.linked_id);
   };
 
   return (
@@ -194,11 +287,24 @@ const Home = ({ onLogout }: HomeProps) => {
                   placeholder="Description..."
                   className="border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                <div>
+                  <ImageUploader
+                    images={images}
+                    setImages={setImages}
+                    previews={previews}
+                    setPreviews={setPreviews}
+                  />
+                </div>
                 <button
                   type="submit"
-                  className="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 transition-colors font-medium"
+                  disabled={uploading}
+                  className={`px-6 py-2 rounded-md transition-colors font-medium ${
+                    uploading
+                      ? "bg-gray-400 text-white cursor-not-allowed"
+                      : "bg-blue-600 text-white hover:bg-blue-700"
+                  }`}
                 >
-                  Add
+                  {uploading ? "Uploading..." : "Add"}
                 </button>
               </div>
             </form>
@@ -255,6 +361,12 @@ const Home = ({ onLogout }: HomeProps) => {
                       ) : (
                         <>
                           <button
+                            onClick={() => handleCallImages(todo)}
+                            className="text-green-600 hover:text-green-700 font-medium px-2"
+                          >
+                            Call Images
+                          </button>
+                          <button
                             onClick={() => handleEditTodo(todo)}
                             className="text-blue-600 hover:text-blue-700 font-medium px-2"
                           >
@@ -275,13 +387,55 @@ const Home = ({ onLogout }: HomeProps) => {
             )}
           </div>
         </div>
+
+        {/* Fetched Images Display */}
+        {fetchedImages.length > 0 && (
+          <div className="bg-white rounded-lg shadow mt-6">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Linked Images
+              </h3>
+            </div>
+            <div className="p-6">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {fetchedImages.map((img, idx) => (
+                  <div
+                    key={idx}
+                    className="relative group rounded-lg overflow-hidden border border-gray-200"
+                  >
+                    <img
+                      src={img.signedUrl}
+                      alt={img.name}
+                      className="w-full h-48 object-cover"
+                    />
+                    {/* Image Info Overlay */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-black bg-opacity-70 text-white p-2 text-xs">
+                      <p className="truncate font-medium">{img.name}</p>
+                      <p className="text-gray-300">
+                        {new Date(img.createdAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {imageLoading && (
+          <div className="bg-white rounded-lg shadow mt-6 p-6 text-center">
+            <p className="text-gray-600">Loading images...</p>
+          </div>
+        )}
+
+        {/* Error State */}
+        {imageError && (
+          <div className="bg-red-50 rounded-lg shadow mt-6 p-6 text-center">
+            <p className="text-red-600">{imageError}</p>
+          </div>
+        )}
       </main>
-      <div>
-        <ImageUploader />
-      </div>
-      <div>
-        <ImageSearch />
-      </div>
       <div className="mt-6 flex flex-col items-center">
         <button
           onClick={TestPress}
